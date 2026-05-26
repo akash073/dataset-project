@@ -1,0 +1,9 @@
+codecarbon
+notebook
+torch
+torchvision
+pandas
+openpyxl
+scikit-learn
+pynvml
+fvcore
