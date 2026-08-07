@@ -1,2 +1,3 @@
 *.json
 energy_logs/**/*
+fingerprinting/models/___pycache__/**/*

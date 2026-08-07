@@ -836,7 +836,7 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 
 
 def main():
-    NUMBER_OF_SAMPLES = 10
+    NUMBER_OF_SAMPLES = 1000
     collect_for_model("CNN",      num_samples=NUMBER_OF_SAMPLES, flush_every=25)
     collect_for_model("DNN",      num_samples=NUMBER_OF_SAMPLES, flush_every=25)
     collect_for_model("Tiny LLM", num_samples=NUMBER_OF_SAMPLES, flush_every=25)
