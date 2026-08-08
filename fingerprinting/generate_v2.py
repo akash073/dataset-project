@@ -37,7 +37,7 @@ MODEL_METRICS_PATH = LOG_DIR / "model_metrics.json"
 # Device resolution
 # ============================================================
 
-DEVICE_MODE = os.getenv("DEVICE_MODE", "auto")  # "cpu" | "cuda" | "auto"
+DEVICE_MODE = os.getenv("DEVICE_MODE", "cpu")  # "cpu" | "cuda" | "auto"
 
 
 def resolve_device():
@@ -838,9 +838,9 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 def main():
     NUMBER_OF_SAMPLES = 1000
     collect_for_model("CNN",      num_samples=NUMBER_OF_SAMPLES, flush_every=25)
-    collect_for_model("DNN",      num_samples=NUMBER_OF_SAMPLES, flush_every=25)
-    collect_for_model("Tiny LLM", num_samples=NUMBER_OF_SAMPLES, flush_every=25)
-    collect_for_model("Tiny VLM", num_samples=NUMBER_OF_SAMPLES, flush_every=25)
+    # collect_for_model("DNN",      num_samples=NUMBER_OF_SAMPLES, flush_every=25)
+    # collect_for_model("Tiny LLM", num_samples=NUMBER_OF_SAMPLES, flush_every=25)
+    # collect_for_model("Tiny VLM", num_samples=NUMBER_OF_SAMPLES, flush_every=25)
     print("\nDone.")
 
 
