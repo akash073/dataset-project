@@ -21,16 +21,46 @@ from model import SimpleCNN, SimpleDNN
 #from utils.llm_utils import load_tiny_llm_model, predict_with_tiny_llm
 #from utils.vlm_utils import load_tiny_vlm_model, predict_with_tiny_vlm
 
+
+# =============================================================================
+NUM_TEST_SAMPLES = 10
+
+def get_cpu_model():
+    try:
+        import cpuinfo
+        return cpuinfo.get_cpu_info().get("brand_raw", "Unknown")
+    except Exception:
+        return platform.processor() or "Unknown"
+
+CPU_MODEL_NAME = get_cpu_model()
+def make_stable_device_id():
+    raw = f"{socket.gethostname()}-{platform.system()}-{platform.machine()}-{CPU_MODEL_NAME}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+DEVICE_UUID = make_stable_device_id()
+DEVICE_SHORT = DEVICE_UUID[:8]
+
+OUTPUT_ROOT = Path.cwd() / "test_results"
+OUTPUT_ROOT.mkdir(exist_ok=True)
+DEVICE_LOG_DIR = OUTPUT_ROOT / f"{DEVICE_SHORT}"
+DEVICE_LOG_DIR.mkdir(exist_ok=True)
+
+DATA_ROOT = Path("./mnist_data")
+# =============================================================================
+
+
+
 torch.set_grad_enabled(False)
 
-LOG_DIR = ROOT / "logs"
+#LOG_DIR = ROOT / "logs"
 
 #CONFIG_DIR = ROOT / "config"
 
-LOG_DIR.mkdir(exist_ok=True)
+#LOG_DIR.mkdir(exist_ok=True)
 #CONFIG_DIR.mkdir(exist_ok=True)
 
-MODEL_METRICS_PATH = LOG_DIR / "model_metrics.json"
+MODEL_METRICS_PATH = DEVICE_LOG_DIR / "model_metrics.json"
 
 
 # ============================================================
@@ -444,9 +474,9 @@ def run_with_energy_tracking(inference_fn, *args, output_dir="./energy_logs", **
 # ============================================================
 
 def get_edge_dataset_path():
-    raw_dir = LOG_DIR / "raw_devices"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    return raw_dir / f"fingerprint_dataset_{DEVICE_SHORT}_automated_edge.csv"
+    # raw_dir = DEVICE_LOG_DIR 
+    # raw_dir.mkdir(parents=True, exist_ok=True)
+    return DEVICE_LOG_DIR / f"fingerprint_dataset_{DEVICE_SHORT}_automated_edge.csv"
 
 
 def load_model_metrics():
@@ -686,7 +716,7 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
     output_path = get_edge_dataset_path()
 
     base_dataset = datasets.MNIST(
-        root="./data",
+        root="./mnist_data",
         train=False,
         download=True,
         transform=transforms.ToTensor()

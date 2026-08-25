@@ -112,7 +112,7 @@ DEVICE_SHORT = DEVICE_UUID[:8]
 DEVICE_LOG_DIR = OUTPUT_ROOT / DEVICE_SHORT
 DEVICE_LOG_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_CSV = DEVICE_LOG_DIR / "mobilenet_v2_mnist_test_full_telemetry.csv"
-SUMMARY_JSON = DEVICE_LOG_DIR / "mobilenet_v2_mnist_test_summary.json"
+#SUMMARY_JSON = DEVICE_LOG_DIR / "mobilenet_v2_mnist_test_summary.json"
 CODECARBON_CSV = DEVICE_LOG_DIR / "codecarbon_mobilenet_mnist.csv"
 
 # ============================================================
@@ -574,21 +574,21 @@ with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
     writer.writeheader()
     writer.writerows(rows)
 
-summary = {
-    "model_type": MODEL_NAME,
-    "dataset": "MNIST",
-    "tested_samples": number_of_samples,
-    "device": str(DEVICE),
-    "parameters": PARAMETERS,
-    "model_flops": MODEL_FLOPS,
-    "accuracy": accuracy,
-    "precision_weighted": precision_weighted,
-    "recall_weighted": recall_weighted,
-    "f1_weighted": f1_weighted,
-    "macro_f1": macro_f1,
-    "confusion_matrix": confusion.tolist(),
-}
-SUMMARY_JSON.write_text(json.dumps(summary, indent=4), encoding="utf-8")
+# summary = {
+#     "model_type": MODEL_NAME,
+#     "dataset": "MNIST",
+#     "tested_samples": number_of_samples,
+#     "device": str(DEVICE),
+#     "parameters": PARAMETERS,
+#     "model_flops": MODEL_FLOPS,
+#     "accuracy": accuracy,
+#     "precision_weighted": precision_weighted,
+#     "recall_weighted": recall_weighted,
+#     "f1_weighted": f1_weighted,
+#     "macro_f1": macro_f1,
+#     "confusion_matrix": confusion.tolist(),
+# }
+# SUMMARY_JSON.write_text(json.dumps(summary, indent=4), encoding="utf-8")
 
 print("\n" + "=" * 70)
 print("FINAL RESULTS")
@@ -599,6 +599,6 @@ print(f"Weighted Recall:    {recall_weighted:.4f}")
 print(f"Weighted F1:        {f1_weighted:.4f}")
 print(f"Macro F1:           {macro_f1:.4f}")
 print("\nConfusion matrix:")
-print(confusion)
+#print(confusion)
 print("\nTelemetry CSV:", OUTPUT_CSV)
-print("Summary JSON:", SUMMARY_JSON)
+#print("Summary JSON:", SUMMARY_JSON)

@@ -1,2 +1,15 @@
+
+
+dnn
+cnn
+
+
 yolo
+mobilenet
+
+
+
+
 qwen
+
+

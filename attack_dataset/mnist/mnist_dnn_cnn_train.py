@@ -1,49 +1,152 @@
-# -*- coding: utf-8 -*-
-"""train_cifar10.ipynb
-
-CIFAR-10 training for SimpleCNN and SimpleDNN
-"""
-
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-from codecarbon import EmissionsTracker
-
-from models.model import SimpleCNN, SimpleDNN
 
 
 # ============================================================
-# PREPROCESSING
+# CNN MODEL
+# ============================================================
+
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super(SimpleCNN, self).__init__()
+
+        self.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=32,
+            kernel_size=3
+        )
+
+        self.conv2 = nn.Conv2d(
+            in_channels=32,
+            out_channels=64,
+            kernel_size=3
+        )
+
+        self.pool = nn.MaxPool2d(
+            kernel_size=2,
+            stride=2
+        )
+
+        self.fc1 = nn.Linear(
+            64 * 5 * 5,
+            128
+        )
+
+        self.fc2 = nn.Linear(
+            128,
+            10
+        )
+
+    def forward(self, x):
+
+        x = self.pool(
+            F.relu(
+                self.conv1(x)
+            )
+        )
+
+        x = self.pool(
+            F.relu(
+                self.conv2(x)
+            )
+        )
+
+        x = torch.flatten(
+            x,
+            1
+        )
+
+        x = F.relu(
+            self.fc1(x)
+        )
+
+        return self.fc2(x)
+
+
+# ============================================================
+# DNN MODEL
+# ============================================================
+
+class SimpleDNN(nn.Module):
+    def __init__(self):
+        super(SimpleDNN, self).__init__()
+
+        self.fc1 = nn.Linear(
+            28 * 28,
+            512
+        )
+
+        self.fc2 = nn.Linear(
+            512,
+            256
+        )
+
+        self.fc3 = nn.Linear(
+            256,
+            128
+        )
+
+        self.fc4 = nn.Linear(
+            128,
+            10
+        )
+
+    def forward(self, x):
+
+        x = torch.flatten(
+            x,
+            1
+        )
+
+        x = F.relu(
+            self.fc1(x)
+        )
+
+        x = F.relu(
+            self.fc2(x)
+        )
+
+        x = F.relu(
+            self.fc3(x)
+        )
+
+        return self.fc4(x)
+
+
+# ============================================================
+# MNIST PREPROCESSING
 # ============================================================
 
 transform = transforms.Compose([
     transforms.ToTensor(),
 
     transforms.Normalize(
-        (0.4914, 0.4822, 0.4465),
-        (0.2470, 0.2435, 0.2616)
+        (0.1307,),
+        (0.3081,)
     )
 ])
 
 
 # ============================================================
-# CIFAR-10 TRAINING DATA
+# MNIST TRAINING DATA
 # ============================================================
 
+train_dataset = datasets.MNIST(
+    root="../data",
+    train=True,
+    download=True,
+    transform=transform
+)
+
+
 train_loader = DataLoader(
-
-    datasets.CIFAR10(
-        "./data",
-        train=True,
-        download=True,
-        transform=transform
-    ),
-
+    train_dataset,
     batch_size=64,
-
     shuffle=True
 )
 
@@ -52,7 +155,10 @@ train_loader = DataLoader(
 # TRAINING ENGINE
 # ============================================================
 
-def run_experiment(model_class, name):
+def run_experiment(
+    model_class,
+    name
+):
 
     device = torch.device(
         "cuda"
@@ -60,7 +166,9 @@ def run_experiment(model_class, name):
         else "cpu"
     )
 
-    print("Device:", device)
+    print(
+        f"\nUsing device: {device}"
+    )
 
 
     # --------------------------------------------------------
@@ -90,35 +198,27 @@ def run_experiment(model_class, name):
 
 
     # --------------------------------------------------------
-    # CodeCarbon
+    # Number of epochs
     # --------------------------------------------------------
 
-    tracker = EmissionsTracker(
-
-        project_name=
-            f"CIFAR10_Fingerprint_{name}",
-
-        output_dir="."
-    )
-
-
-    tracker.start()
-
-
-    print(
-        f"\nStarting {name} "
-        f"CIFAR-10 Training..."
-    )
+    NUM_EPOCHS = 10
 
 
     # ========================================================
     # Training
     # ========================================================
 
+    print(
+        f"\nStarting {name} MNIST training..."
+    )
+
+
     model.train()
 
 
-    for epoch in range(2):
+    for epoch in range(
+        NUM_EPOCHS
+    ):
 
         running_loss = 0.0
 
@@ -138,13 +238,25 @@ def run_experiment(model_class, name):
             )
 
 
+            # --------------------------------------------
+            # Clear gradients
+            # --------------------------------------------
+
             optimizer.zero_grad()
 
+
+            # --------------------------------------------
+            # Forward
+            # --------------------------------------------
 
             outputs = model(
                 images
             )
 
+
+            # --------------------------------------------
+            # Loss
+            # --------------------------------------------
 
             loss = criterion(
                 outputs,
@@ -152,15 +264,23 @@ def run_experiment(model_class, name):
             )
 
 
+            # --------------------------------------------
+            # Backward
+            # --------------------------------------------
+
             loss.backward()
 
+
+            # --------------------------------------------
+            # Update weights
+            # --------------------------------------------
 
             optimizer.step()
 
 
-            # ------------------------------------------------
+            # --------------------------------------------
             # Statistics
-            # ------------------------------------------------
+            # --------------------------------------------
 
             running_loss += (
                 loss.item()
@@ -173,7 +293,9 @@ def run_experiment(model_class, name):
             )
 
 
-            total += labels.size(0)
+            total += (
+                labels.size(0)
+            )
 
 
             correct += (
@@ -182,6 +304,10 @@ def run_experiment(model_class, name):
                 labels
             ).sum().item()
 
+
+        # ====================================================
+        # Epoch metrics
+        # ====================================================
 
         epoch_accuracy = (
             100.0
@@ -200,17 +326,10 @@ def run_experiment(model_class, name):
 
 
         print(
-            f"Epoch [{epoch + 1}/2] "
+            f"Epoch [{epoch + 1}/{NUM_EPOCHS}] "
             f"Loss: {average_loss:.4f} "
             f"Accuracy: {epoch_accuracy:.2f}%"
         )
-
-
-    # ========================================================
-    # Stop energy tracking
-    # ========================================================
-
-    tracker.stop()
 
 
     # ========================================================
@@ -218,7 +337,7 @@ def run_experiment(model_class, name):
     # ========================================================
 
     save_path = (
-        f"cifar10_"
+        f"mnist_"
         f"{name.lower()}.pth"
     )
 
@@ -230,7 +349,7 @@ def run_experiment(model_class, name):
 
 
     print(
-        f"{name} Complete."
+        f"\n{name} training complete."
     )
 
 
@@ -241,7 +360,7 @@ def run_experiment(model_class, name):
 
 
 # ============================================================
-# RUN BOTH MODELS
+# RUN CNN
 # ============================================================
 
 run_experiment(
@@ -249,6 +368,10 @@ run_experiment(
     "CNN"
 )
 
+
+# ============================================================
+# RUN DNN
+# ============================================================
 
 run_experiment(
     SimpleDNN,
