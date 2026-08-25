@@ -31,18 +31,44 @@ from transformers import (
 # Configuration
 # ============================================================
 
+NUM_TEST_SAMPLES = 10
+
+def get_cpu_model():
+    try:
+        import cpuinfo
+        return cpuinfo.get_cpu_info().get("brand_raw", "Unknown")
+    except Exception:
+        return platform.processor() or "Unknown"
+
+CPU_MODEL_NAME = get_cpu_model()
+def make_stable_device_id():
+    raw = f"{socket.gethostname()}-{platform.system()}-{platform.machine()}-{CPU_MODEL_NAME}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+DEVICE_UUID = make_stable_device_id()
+DEVICE_SHORT = DEVICE_UUID[:8]
+
+OUTPUT_ROOT = Path.cwd() / "test_results"
+OUTPUT_ROOT.mkdir(exist_ok=True)
+DEVICE_LOG_DIR = OUTPUT_ROOT / f"{DEVICE_SHORT}"
+DEVICE_LOG_DIR.mkdir(exist_ok=True)
+
+DATA_ROOT = Path("./mnist_data")
+# =============================================================================
+
+
 MODEL_ID = "Qwen/Qwen2-VL-2B-Instruct"
 
-DATA_ROOT = "../data"
 
-OUTPUT_DIR = Path("./logs/qwen")
+OUTPUT_DIR = OUTPUT_ROOT
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-OUTPUT_CSV = OUTPUT_DIR / "qwen2vl_mnist_test_metrics.csv"
+OUTPUT_CSV = DEVICE_LOG_DIR / "qwen2vl_mnist_test_telemetry.csv"
 
 # None = entire 10,000 MNIST test set
 # Use 10 or 100 first to verify everything
-NUM_SAMPLES = 10
+NUM_SAMPLES = NUM_TEST_SAMPLES
 
 DEVICE = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
