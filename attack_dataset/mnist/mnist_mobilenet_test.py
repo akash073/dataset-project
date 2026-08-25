@@ -43,7 +43,7 @@ def resolve_device():
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-DEVICE = resolve_device()
+DEVICE = 'cpu'#resolve_device()
 
 # ============================================================
 # Optional packages

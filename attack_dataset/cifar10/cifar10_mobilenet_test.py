@@ -20,8 +20,8 @@ from tqdm import tqdm
 # 1. Configuration
 # ============================================================
 
-MODEL_PATH = "mobilenet_v2_cpu.pt"
-CIFAR_ROOT = "./data"
+MODEL_PATH = "cifar10_mobilenet_v2_cpu.pt"
+CIFAR_ROOT = "./cifar10_data"
 
 # Change to None to test all 10,000 CIFAR-10 test images.
 MAX_TEST_SAMPLES = 1000

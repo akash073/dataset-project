@@ -41,7 +41,7 @@ def main():
     print("Starting training on CPU... (This may take some time)")
     model.train()
     
-    for epoch in range(1):  # Adjust epochs as needed
+    for epoch in range(10):  # Adjust epochs as needed
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(trainloader):
             inputs, labels = inputs.to(device), labels.to(device)

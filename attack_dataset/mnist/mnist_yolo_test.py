@@ -110,7 +110,7 @@ TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry_1000.csv"
 # CONFUSION_MATRIX_CSV_PATH = (
 #     OUTPUT_ROOT / "confusion_matrix_1000.csv"
 # )
-CODECARBON_CSV_PATH = OUTPUT_ROOT / "yolo_codecarbon_inference.csv"
+CODECARBON_CSV_PATH = OUTPUT_ROOT / "codecarbon" / "yolo_codecarbon_inference.csv"
 # RETURN_FILES_JSON_PATH = OUTPUT_ROOT / "return_files.json"
 
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)

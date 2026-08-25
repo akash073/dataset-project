@@ -441,7 +441,7 @@ def _extract_energy_data(tracker, emissions_value):
     return cpu_energy, gpu_energy, ram_energy, total_energy, carbon_intensity
 
 
-def run_with_energy_tracking(inference_fn, *args, output_dir="./energy_logs", **kwargs):
+def run_with_energy_tracking(inference_fn, *args, output_dir="./test_results/codecarbon", **kwargs):
     os.makedirs(output_dir, exist_ok=True)
 
     if CODECARBON_AVAILABLE:
