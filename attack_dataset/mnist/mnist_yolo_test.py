@@ -48,17 +48,38 @@ import ultralytics
 
 
 # =============================================================================
-# CONFIGURATION
+NUM_TEST_SAMPLES = 10
+
+def get_cpu_model():
+    try:
+        import cpuinfo
+        return cpuinfo.get_cpu_info().get("brand_raw", "Unknown")
+    except Exception:
+        return platform.processor() or "Unknown"
+
+CPU_MODEL_NAME = get_cpu_model()
+def make_stable_device_id():
+    raw = f"{socket.gethostname()}-{platform.system()}-{platform.machine()}-{CPU_MODEL_NAME}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+DEVICE_UUID = make_stable_device_id()
+DEVICE_SHORT = DEVICE_UUID[:8]
+
+OUTPUT_ROOT = Path.cwd() / "test_results"
+OUTPUT_ROOT.mkdir(exist_ok=True)
+DEVICE_LOG_DIR = OUTPUT_ROOT / f"{DEVICE_SHORT}"
+DEVICE_LOG_DIR.mkdir(exist_ok=True)
+
+DATA_ROOT = Path("./mnist_data")
 # =============================================================================
 
 SEED = 42
 
 MODEL_PATH = Path.cwd() / "yolo26n_mnist_cpu.pt"
 
-DATA_ROOT = Path("../data")
-OUTPUT_ROOT = Path.cwd() / "yolo26n_mnist_cpu_test_results"
 
-NUM_TEST_SAMPLES = 1000
+
 IMAGE_SIZE = 28
 DEVICE = "cpu"
 
@@ -80,17 +101,17 @@ CLASS_NAMES = [
 
 N_CLASSES = len(CLASS_NAMES)
 
-TELEMETRY_CSV_PATH = OUTPUT_ROOT / "test_telemetry_1000.csv"
-PREDICTIONS_CSV_PATH = OUTPUT_ROOT / "test_predictions_1000.csv"
-RESULTS_JSON_PATH = OUTPUT_ROOT / "test_results_1000.json"
-CLASSIFICATION_REPORT_CSV_PATH = (
-    OUTPUT_ROOT / "classification_report_1000.csv"
-)
-CONFUSION_MATRIX_CSV_PATH = (
-    OUTPUT_ROOT / "confusion_matrix_1000.csv"
-)
-CODECARBON_CSV_PATH = OUTPUT_ROOT / "codecarbon_inference.csv"
-RETURN_FILES_JSON_PATH = OUTPUT_ROOT / "return_files.json"
+TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry_1000.csv"
+# PREDICTIONS_CSV_PATH = OUTPUT_ROOT / "test_predictions_1000.csv"
+# RESULTS_JSON_PATH = OUTPUT_ROOT / "test_results_1000.json"
+# CLASSIFICATION_REPORT_CSV_PATH = (
+#     OUTPUT_ROOT / "classification_report_1000.csv"
+# )
+# CONFUSION_MATRIX_CSV_PATH = (
+#     OUTPUT_ROOT / "confusion_matrix_1000.csv"
+# )
+CODECARBON_CSV_PATH = OUTPUT_ROOT / "yolo_codecarbon_inference.csv"
+# RETURN_FILES_JSON_PATH = OUTPUT_ROOT / "return_files.json"
 
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
@@ -557,8 +578,6 @@ def main() -> dict[str, str | None]:
 
     for old_file in [
         TELEMETRY_CSV_PATH,
-        PREDICTIONS_CSV_PATH,
-        CODECARBON_CSV_PATH,
     ]:
         if old_file.exists():
             old_file.unlink()
@@ -985,10 +1004,10 @@ def main() -> dict[str, str | None]:
         prediction_rows
     )
 
-    prediction_dataframe.to_csv(
-        PREDICTIONS_CSV_PATH,
-        index=False,
-    )
+    # prediction_dataframe.to_csv(
+    #     PREDICTIONS_CSV_PATH,
+    #     index=False,
+    # )
 
     accuracy = accuracy_score(
         true_labels,
@@ -1008,9 +1027,9 @@ def main() -> dict[str, str | None]:
         report_dictionary
     ).transpose()
 
-    report_dataframe.to_csv(
-        CLASSIFICATION_REPORT_CSV_PATH
-    )
+    # report_dataframe.to_csv(
+    #     CLASSIFICATION_REPORT_CSV_PATH
+    # )
 
     matrix = confusion_matrix(
         true_labels,
@@ -1030,9 +1049,9 @@ def main() -> dict[str, str | None]:
         ],
     )
 
-    matrix_dataframe.to_csv(
-        CONFUSION_MATRIX_CSV_PATH
-    )
+    # matrix_dataframe.to_csv(
+    #     CONFUSION_MATRIX_CSV_PATH
+    # )
 
     model_metrics = {
         "accuracy": float(accuracy),
@@ -1216,13 +1235,13 @@ def main() -> dict[str, str | None]:
         ),
     }
 
-    RESULTS_JSON_PATH.write_text(
-        json.dumps(
-            results,
-            indent=4,
-        ),
-        encoding="utf-8",
-    )
+    # RESULTS_JSON_PATH.write_text(
+    #     json.dumps(
+    #         results,
+    #         indent=4,
+    #     ),
+    #     encoding="utf-8",
+    # )
 
     return_files: dict[
         str,
@@ -1231,43 +1250,43 @@ def main() -> dict[str, str | None]:
         "model_pt": str(
             MODEL_PATH.resolve()
         ),
-        "test_predictions_csv": str(
-            PREDICTIONS_CSV_PATH.resolve()
-        ),
+        # "test_predictions_csv": str(
+        #     PREDICTIONS_CSV_PATH.resolve()
+        # ),
         "test_telemetry_csv": str(
             TELEMETRY_CSV_PATH.resolve()
         ),
-        "test_results_json": str(
-            RESULTS_JSON_PATH.resolve()
-        ),
-        "classification_report_csv": str(
-            CLASSIFICATION_REPORT_CSV_PATH.resolve()
-        ),
-        "confusion_matrix_csv": str(
-            CONFUSION_MATRIX_CSV_PATH.resolve()
-        ),
-        "codecarbon_csv": (
-            str(
-                CODECARBON_CSV_PATH.resolve()
-            )
-            if CODECARBON_CSV_PATH.exists()
-            else None
-        ),
-        "output_directory": str(
-            OUTPUT_ROOT.resolve()
-        ),
-        "return_files_json": str(
-            RETURN_FILES_JSON_PATH.resolve()
-        ),
+        # "test_results_json": str(
+        #     RESULTS_JSON_PATH.resolve()
+        # ),
+        # "classification_report_csv": str(
+        #     CLASSIFICATION_REPORT_CSV_PATH.resolve()
+        # ),
+        # "confusion_matrix_csv": str(
+        #     CONFUSION_MATRIX_CSV_PATH.resolve()
+        # ),
+        # "codecarbon_csv": (
+        #     str(
+        #         CODECARBON_CSV_PATH.resolve()
+        #     )
+        #     if CODECARBON_CSV_PATH.exists()
+        #     else None
+        # ),
+        # "output_directory": str(
+        #     OUTPUT_ROOT.resolve()
+        # ),
+        # "return_files_json": str(
+        #     RETURN_FILES_JSON_PATH.resolve()
+        # ),
     }
 
-    RETURN_FILES_JSON_PATH.write_text(
-        json.dumps(
-            return_files,
-            indent=4,
-        ),
-        encoding="utf-8",
-    )
+    # RETURN_FILES_JSON_PATH.write_text(
+    #     json.dumps(
+    #         return_files,
+    #         indent=4,
+    #     ),
+    #     encoding="utf-8",
+    # )
 
     print("\n" + "=" * 80)
     print("TEST RESULTS")
