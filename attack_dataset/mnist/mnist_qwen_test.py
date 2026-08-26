@@ -33,6 +33,8 @@ from transformers import (
 
 NUM_TEST_SAMPLES = 10
 
+#NUM_TEST_SAMPLES = None
+
 def get_cpu_model():
     try:
         import cpuinfo

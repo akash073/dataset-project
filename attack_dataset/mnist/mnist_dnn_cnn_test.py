@@ -25,6 +25,8 @@ from model import SimpleCNN, SimpleDNN
 # =============================================================================
 NUM_TEST_SAMPLES = 10
 
+#NUM_TEST_SAMPLES = None
+
 def get_cpu_model():
     try:
         import cpuinfo
@@ -805,9 +807,8 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 
 
 def main():
-    NUM_SAMPLES = 10
-    collect_for_model("CNN",      num_samples=NUM_SAMPLES, flush_every=25)
-    collect_for_model("DNN",      num_samples=NUM_SAMPLES, flush_every=25)
+    collect_for_model("CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25)
+    collect_for_model("DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25)
     print("\nDone.")
 
 

@@ -22,9 +22,12 @@ from tqdm import tqdm
 # ============================================================
 # Configuration
 # ============================================================
+
+NUM_TEST_SAMPLES = 10
+NUM_TEST_SAMPLES = None
+
 MODEL_PATH = "mobilenet_v2_mnist_cpu.pt"
 MNIST_ROOT = "./mnist_data"
-NUM_TEST_SAMPLES = 10          # None = all 10,000 test images
 DEVICE_MODE = "auto"          # "cpu", "cuda", or "auto"
 ENABLE_CODECARBON = True
 CLASS_NAMES = [str(i) for i in range(10)]
