@@ -113,8 +113,8 @@ DEVICE_LOG_DIR = OUTPUT_ROOT / DEVICE_SHORT
 DEVICE_LOG_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_CSV = DEVICE_LOG_DIR / "mobilenet_v2_mnist_test_full_telemetry.csv"
 #SUMMARY_JSON = DEVICE_LOG_DIR / "mobilenet_v2_mnist_test_summary.json"
-CODECARBON_CSV = DEVICE_LOG_DIR / "codecarbon_mobilenet_mnist.csv"
-
+CODECARBON_CSV_PATH = OUTPUT_ROOT / "codecarbon" / "mobilenet_codecarbon_mnist.csv"
+os.makedirs(CODECARBON_CSV_PATH, exist_ok=True)
 # ============================================================
 # Hardware helpers
 # ============================================================
@@ -282,21 +282,23 @@ def run_model_inference(model, image):
     if ENABLE_CODECARBON and CODECARBON_AVAILABLE:
         tracker = EmissionsTracker(
             project_name="mobilenet_v2_mnist_edge_inference",
-            output_dir=str(DEVICE_LOG_DIR),
-            output_file=CODECARBON_CSV.name,
+            output_dir=CODECARBON_CSV_PATH,
+            output_file=CODECARBON_CSV_PATH.name,
             log_level="error",
             save_to_file=True,
             measure_power_secs=1,
         )
         tracker.start()
 
-    if DEVICE.type == "cuda":
-        torch.cuda.synchronize()
-    t0 = time.perf_counter()
+    # if DEVICE.type == "cuda":
+    #     torch.cuda.synchronize()
+    
     with torch.inference_mode():
         logits = model(image)
-    if DEVICE.type == "cuda":
-        torch.cuda.synchronize()
+    # if DEVICE.type == "cuda":
+    #     torch.cuda.synchronize()
+
+    t0 = time.perf_counter()
     exec_time = time.perf_counter() - t0
 
     if tracker is not None:
@@ -488,15 +490,6 @@ MODEL_NAME = "MobileNetV2_MNIST"
 PARAMETERS = int(sum(p.numel() for p in model.parameters()))
 MODEL_FLOPS = compute_model_flops(model)
 
-# ============================================================
-# Warm-up
-# ============================================================
-warmup_image, _ = test_dataset[0]
-warmup_image = warmup_image.unsqueeze(0).to(DEVICE)
-with torch.inference_mode():
-    _ = model(warmup_image)
-if DEVICE.type == "cuda":
-    torch.cuda.synchronize()
 
 # ============================================================
 # Test one image at a time

@@ -78,6 +78,8 @@ SEED = 42
 
 MODEL_PATH = Path.cwd() / "yolo26n_mnist_cpu.pt"
 
+CODECARBON_CSV_PATH = OUTPUT_ROOT / "codecarbon" / "codecarbon_yolo_mnist.csv"
+os.makedirs(CODECARBON_CSV_PATH, exist_ok=True)
 
 
 IMAGE_SIZE = 28
@@ -462,15 +464,16 @@ def run_with_energy_tracking(
         and CODECARBON_AVAILABLE
     )
 
+
     if should_track:
+        
         tracker = EmissionsTracker(
-            project_name=project_name,
-            output_dir=str(OUTPUT_ROOT),
-            output_file=output_file,
-            log_level="error",
-            save_to_file=True,
-            measure_power_secs=1,
-        )
+                    project_name="mnist_edge_inference",
+                    output_dir=CODECARBON_CSV_PATH,
+                    output_file="codecarbon_edge.csv",
+                    log_level="error",
+                    save_to_file=True,
+                )
 
         tracker.start()
         start_time = time.perf_counter()

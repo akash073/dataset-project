@@ -448,7 +448,7 @@ def run_with_energy_tracking(inference_fn, *args, output_dir="./test_results/cod
         tracker = EmissionsTracker(
             project_name="mnist_edge_inference",
             output_dir=output_dir,
-            output_file="codecarbon_edge.csv",
+            output_file="codecarbon_dnn_cnn_edge.csv",
             log_level="error",
             save_to_file=True,
         )
@@ -476,7 +476,7 @@ def run_with_energy_tracking(inference_fn, *args, output_dir="./test_results/cod
 def get_edge_dataset_path():
     # raw_dir = DEVICE_LOG_DIR 
     # raw_dir.mkdir(parents=True, exist_ok=True)
-    return DEVICE_LOG_DIR / f"fingerprint_dataset_{DEVICE_SHORT}_automated_edge.csv"
+    return DEVICE_LOG_DIR / f"dnn_cnn_dataset_{DEVICE_SHORT}_automated_edge.csv"
 
 
 def load_model_metrics():

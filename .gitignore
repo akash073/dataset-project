@@ -4,5 +4,5 @@ fingerprinting/models/___pycache__/**/*
 
 attack_dataset/mnist/__pycache__/
 attack_dataset/mnist/energy_logs/
-
+attack_dataset/mnist/test_results/
 attack_dataset/mnist/test_results/codecarbon
