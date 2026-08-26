@@ -104,7 +104,7 @@ CLASS_NAMES = [
 
 N_CLASSES = len(CLASS_NAMES)
 
-TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry_1000.csv"
+TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry.csv"
 # PREDICTIONS_CSV_PATH = OUTPUT_ROOT / "test_predictions_1000.csv"
 # RESULTS_JSON_PATH = OUTPUT_ROOT / "test_results_1000.json"
 # CLASSIFICATION_REPORT_CSV_PATH = (
@@ -112,9 +112,6 @@ TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry_1000.csv"
 # )
 # CONFUSION_MATRIX_CSV_PATH = (
 #     OUTPUT_ROOT / "confusion_matrix_1000.csv"
-# )
-CODECARBON_CSV_PATH = OUTPUT_ROOT / "codecarbon" / "yolo_codecarbon_inference.csv"
-# RETURN_FILES_JSON_PATH = OUTPUT_ROOT / "return_files.json"
 
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
@@ -471,7 +468,7 @@ def run_with_energy_tracking(
         tracker = EmissionsTracker(
                     project_name="mnist_edge_inference",
                     output_dir=CODECARBON_CSV_PATH,
-                    output_file="codecarbon_edge.csv",
+                    output_file=CODECARBON_CSV_PATH.name,
                     log_level="error",
                     save_to_file=True,
                 )
