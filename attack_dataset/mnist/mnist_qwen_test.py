@@ -31,7 +31,8 @@ from transformers import (
 # Configuration
 # ============================================================
 
-NUM_TEST_SAMPLES = 10
+NUM_TEST_SAMPLES = int(os.getenv("NUM_TEST_SAMPLES", 10))
+
 
 #NUM_TEST_SAMPLES = None
 
@@ -763,7 +764,7 @@ MODEL_PARAMETERS = sum(
 )
 
 
-MODEL_NAME = "Qwen2-VL-2B-Instruct"
+MODEL_NAME = "Qwen2"
 
 
 # FLOPs are intentionally None.
@@ -1738,7 +1739,9 @@ def build_row(
             None,
 
         "model_f1_weighted":
-            None
+            None,
+            # --- custom metrics ---
+        "model_under_attack":              0,
 
     }
 

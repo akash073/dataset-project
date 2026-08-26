@@ -107,7 +107,7 @@ QUESTION = (
     "0, 1, 2, 3, 4, 5, 6, 7, 8, or 9."
 )
 
-MODEL_NAME = "Moondream2-DoCCI-Instruct-MNIST"
+MODEL_NAME = "Moondream2"
 COLLECTION_MODE = "automated_edge"
 
 
@@ -1755,70 +1755,6 @@ def classify_image(
 
 
 # ============================================================
-# 12. WARM-UP
-# ============================================================
-
-print(
-    "\nRunning warm-up inference..."
-)
-
-warmup_image, _ = (
-    test_dataset[0]
-)
-
-
-try:
-
-    warmup_response = (
-        classify_image(
-            warmup_image
-        )
-    )
-
-
-    if DEVICE.type == "cuda":
-
-        torch.cuda.synchronize()
-
-
-    print(
-        "Warm-up response:",
-        warmup_response,
-    )
-
-
-    print(
-        "Warm-up completed successfully."
-    )
-
-
-except Exception:
-
-    import traceback
-
-    print(
-        "\n"
-        + "=" * 72
-    )
-
-    print(
-        "REAL WARM-UP ERROR"
-    )
-
-    print(
-        "=" * 72
-    )
-
-    traceback.print_exc()
-
-    raise RuntimeError(
-        "Warm-up inference failed. "
-        "The complete original "
-        "error is printed above."
-    )
-
-
-# ============================================================
 # 13. PER-SAMPLE INFERENCE + QUALITY
 # ============================================================
 
@@ -2766,6 +2702,11 @@ for row in results:
         f1_weighted
     )
 
+        #"model_under_attack":              0,
+
+    row[
+        "model_under_attack"
+    ] = 0
 
 # ============================================================
 # 19. DISPLAY RESULTS
@@ -2908,118 +2849,6 @@ pd.DataFrame(
     OUTPUT_CSV,
     index=False,
 )
-
-
-# ============================================================
-# 21. SAVE METRICS JSON
-# ============================================================
-
-metrics = {
-    "transformers_version":
-        TRANSFORMERS_VERSION,
-
-    "model_id":
-        MODEL_ID,
-
-    "model_revision":
-        MODEL_REVISION,
-
-    "model_type":
-        MODEL_NAME,
-
-    "parameters":
-        int(
-            MODEL_PARAMETERS
-        ),
-
-    "model_flops":
-        MODEL_FLOPS,
-
-    "dataset":
-        "MNIST",
-
-    "number_of_samples":
-        int(
-            number_of_samples
-        ),
-
-    "device":
-        str(
-            DEVICE
-        ),
-
-    "dtype":
-        str(
-            DTYPE
-        ),
-
-    "accuracy":
-        float(
-            accuracy
-        ),
-
-    "precision_weighted":
-        float(
-            precision_weighted
-        ),
-
-    "recall_weighted":
-        float(
-            recall_weighted
-        ),
-
-    "f1_weighted":
-        float(
-            f1_weighted
-        ),
-
-    "macro_f1":
-        float(
-            macro_f1
-        ),
-
-    "invalid_count":
-        int(
-            invalid_count
-        ),
-
-    "invalid_rate":
-        float(
-            invalid_rate
-        ),
-
-    "inference_error_count":
-        int(
-            inference_error_count
-        ),
-
-    "average_latency_seconds":
-        average_latency,
-
-    "median_latency_seconds":
-        median_latency,
-
-    "minimum_latency_seconds":
-        minimum_latency,
-
-    "maximum_latency_seconds":
-        maximum_latency,
-
-    "class_names":
-        CLASS_NAMES,
-
-    "confusion_matrix_labels":
-        matrix_labels,
-
-    "confusion_matrix":
-        matrix.tolist(),
-
-    "classification_report":
-        report_dictionary,
-}
-
-
-
 
 
 print(

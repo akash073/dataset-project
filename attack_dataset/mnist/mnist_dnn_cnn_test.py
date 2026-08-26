@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 import platform
 import socket
@@ -13,6 +12,12 @@ import psutil
 import torch
 import torch.nn.functional as F
 from torchvision import datasets, transforms
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT))
@@ -60,8 +65,6 @@ torch.set_grad_enabled(False)
 
 #LOG_DIR.mkdir(exist_ok=True)
 #CONFIG_DIR.mkdir(exist_ok=True)
-
-MODEL_METRICS_PATH = DEVICE_LOG_DIR / "model_metrics.json"
 
 
 # ============================================================
@@ -480,13 +483,6 @@ def get_edge_dataset_path():
     return DEVICE_LOG_DIR / f"dnn_cnn_dataset_{DEVICE_SHORT}_automated_edge.csv"
 
 
-def load_model_metrics():
-    if MODEL_METRICS_PATH.exists():
-        with open(MODEL_METRICS_PATH, "r") as f:
-            return json.load(f)
-    return {}
-
-
 def append_rows(rows, file_path):
     if not rows:
         return
@@ -555,7 +551,7 @@ def build_row(
     model_name,
     prediction,
     exec_time,
-    model_metrics,
+    parameters,
     true_label,
     sample_index,
     logits=None,
@@ -619,7 +615,7 @@ def build_row(
 
         # --- Model identity ---
         "model_type":                   model_name,
-        "parameters":                   model_metrics.get("parameters"),
+        "parameters":                   parameters,
         "model_flops":                  model_flops,
 
         # --- Prediction quality ---
@@ -696,11 +692,122 @@ def build_row(
         "torch_version":                TORCH_VERSION,
 
         # --- Final model metrics (backfilled after run) ---
-        "model_accuracy":               model_metrics.get("accuracy"),
-        "model_precision_weighted":     model_metrics.get("precision_weighted"),
-        "model_recall_weighted":        model_metrics.get("recall_weighted"),
-        "model_f1_weighted":            model_metrics.get("f1_weighted"),
+        "model_accuracy":               None,
+        "model_precision_weighted":     None,
+        "model_recall_weighted":        None,
+        "model_f1_weighted":            None,
+
+        # --- custom metrics ---
+        "model_under_attack":              0,
     }
+
+
+
+def backfill_model_metrics(file_path, model_name):
+    """
+    Compute model metrics from the prediction rows already saved in the
+    telemetry CSV, then write those metrics back into the same CSV.
+    No separate model_metrics.json file is used.
+    """
+    if not file_path.exists():
+        return None
+
+    df = pd.read_csv(file_path, on_bad_lines="skip")
+
+    if "model_type" not in df.columns:
+        return None
+
+    mask = (
+        df["model_type"]
+        .astype(str)
+        .str.strip()
+        == model_name
+    )
+
+    model_df = df.loc[mask].copy()
+
+    if model_df.empty:
+        return None
+
+    # Remove incomplete rows, if any.
+    model_df = model_df.dropna(
+        subset=["true_label", "prediction"]
+    )
+
+    if model_df.empty:
+        return None
+
+    y_true = model_df["true_label"].astype(int).tolist()
+    y_pred = model_df["prediction"].astype(int).tolist()
+
+    accuracy = accuracy_score(
+        y_true,
+        y_pred,
+    )
+
+    precision_weighted = precision_score(
+        y_true,
+        y_pred,
+        average="weighted",
+        zero_division=0,
+    )
+
+    recall_weighted = recall_score(
+        y_true,
+        y_pred,
+        average="weighted",
+        zero_division=0,
+    )
+
+    f1_weighted = f1_score(
+        y_true,
+        y_pred,
+        average="weighted",
+        zero_division=0,
+    )
+
+    # Backfill all rows belonging to this model in the SAME CSV.
+    df.loc[
+        mask,
+        "model_accuracy",
+    ] = float(accuracy)
+
+    df.loc[
+        mask,
+        "model_precision_weighted",
+    ] = float(precision_weighted)
+
+    df.loc[
+        mask,
+        "model_recall_weighted",
+    ] = float(recall_weighted)
+
+    df.loc[
+        mask,
+        "model_f1_weighted",
+    ] = float(f1_weighted)
+
+    df.to_csv(
+        file_path,
+        index=False,
+    )
+
+    metrics = {
+        "accuracy": float(accuracy),
+        "precision_weighted": float(precision_weighted),
+        "recall_weighted": float(recall_weighted),
+        "f1_weighted": float(f1_weighted),
+    }
+
+    print(
+        f"{model_name} metrics -> "
+        f"Accuracy: {accuracy:.4f}, "
+        f"Precision(weighted): {precision_weighted:.4f}, "
+        f"Recall(weighted): {recall_weighted:.4f}, "
+        f"F1(weighted): {f1_weighted:.4f}"
+    )
+
+    return metrics
 
 
 # ============================================================
@@ -712,8 +819,6 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
     print(f"Device UUID : {DEVICE_UUID}")
     print(f"Device short: {DEVICE_SHORT}")
 
-    all_metrics = load_model_metrics()
-    model_metrics = all_metrics.get(model_name, {})
     output_path = get_edge_dataset_path()
 
     base_dataset = datasets.MNIST(
@@ -740,11 +845,22 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
+    # Compute parameter count directly from the loaded model.
+    # No separate model-metrics file is needed.
+    parameters = sum(
+        p.numel()
+        for p in model.parameters()
+    )
+
     limit = min(num_samples, len(base_dataset))
     existing_count = get_existing_count(output_path, model_name)
 
     if existing_count >= limit:
-        print(f"{model_name}: already complete ({existing_count}/{limit}) -> skipping")
+        print(f"{model_name}: already complete ({existing_count}/{limit})")
+        backfill_model_metrics(
+            output_path,
+            model_name,
+        )
         return
 
     print(f"{model_name}: resuming from {existing_count}/{limit}")
@@ -772,7 +888,7 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
             model_name=model_name,
             prediction=pred,
             exec_time=exec_time,
-            model_metrics=model_metrics,
+            parameters=parameters,
             true_label=int(true_label),
             sample_index=i,
             logits=logits,
@@ -801,6 +917,13 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 
     if rows:
         append_rows(rows, output_path)
+
+    # Compute Accuracy / Precision / Recall / F1 from the saved predictions
+    # and write them back into the SAME telemetry CSV.
+    backfill_model_metrics(
+        output_path,
+        model_name,
+    )
 
     print(f"{model_name}: finished {limit}/{limit} -> {output_path}")
 
