@@ -38,9 +38,8 @@ from transformers.generation.utils import GenerationMixin
 # ============================================================
 # Configuration
 # ============================================================
-
-NUM_TEST_SAMPLES = 10
-#NUM_TEST_SAMPLES = None
+# Retrieves env var 'NUM_TEST_SAMPLES', defaults to 10 if not set
+NUM_TEST_SAMPLES = int(os.getenv("NUM_TEST_SAMPLES", 10))
 
 def get_cpu_model():
     try:

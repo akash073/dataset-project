@@ -23,9 +23,8 @@ from tqdm import tqdm
 # Configuration
 # ============================================================
 
-NUM_TEST_SAMPLES = 10
-
-#NUM_TEST_SAMPLES = None
+# Retrieves env var 'NUM_TEST_SAMPLES', defaults to 10 if not set
+NUM_TEST_SAMPLES = int(os.getenv("NUM_TEST_SAMPLES", 10))
 
 MODEL_PATH = "mobilenet_v2_mnist_cpu.pt"
 MNIST_ROOT = "./mnist_data"

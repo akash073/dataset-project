@@ -48,8 +48,8 @@ import ultralytics
 
 
 # =============================================================================
-NUM_TEST_SAMPLES = 10
-#NUM_TEST_SAMPLES = None
+# Retrieves env var 'NUM_TEST_SAMPLES', defaults to 10 if not set
+NUM_TEST_SAMPLES = int(os.getenv("NUM_TEST_SAMPLES", 10))
 
 def get_cpu_model():
     try:
@@ -104,7 +104,7 @@ CLASS_NAMES = [
 
 N_CLASSES = len(CLASS_NAMES)
 
-TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_telemetry.csv"
+TELEMETRY_CSV_PATH = DEVICE_LOG_DIR / "yolo_test_dataset.csv"
 # PREDICTIONS_CSV_PATH = OUTPUT_ROOT / "test_predictions_1000.csv"
 # RESULTS_JSON_PATH = OUTPUT_ROOT / "test_results_1000.json"
 # CLASSIFICATION_REPORT_CSV_PATH = (
