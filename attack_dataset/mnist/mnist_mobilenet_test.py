@@ -446,6 +446,9 @@ def build_row(sample_index, true_label, prediction, logits, exec_time,
         "model_precision_weighted": None,
         "model_recall_weighted": None,
         "model_f1_weighted": None,
+
+                # --- custom metrics ---
+        "model_under_attack":              0,
     }
 
 # ============================================================
@@ -489,7 +492,7 @@ model.load_state_dict(state_dict, strict=True)
 model = model.to(DEVICE)
 model.eval()
 
-MODEL_NAME = "MobileNetV2_MNIST"
+MODEL_NAME = "MobileNetV2"
 PARAMETERS = int(sum(p.numel() for p in model.parameters()))
 MODEL_FLOPS = compute_model_flops(model)
 
