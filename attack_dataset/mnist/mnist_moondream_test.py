@@ -1138,15 +1138,125 @@ MODEL_PARAMETERS = sum(
 
 
 # For this multimodal generative model, a single meaningful
+# For this multimodal generative model, a single meaningful
 # FLOPs value depends on image tokenization, prompt length,
 # and generated token length. Leave as None rather than report
 # a misleading number.
 
-from calflops import calculate_flops_hf
-batch_size, max_seq_length = 1, 128
-flops, macs, params = calculate_flops_hf(model_name=MODEL_ID, 
-                                          input_shape=(batch_size, max_seq_length))
-MODEL_FLOPS = flops
+def transformer_block_flops(seq_len, d, d_ff, n_layers):
+    """
+    Standard dense-transformer FLOPs per forward pass (no KV cache):
+      Attention: QKVO projections  = 4 * (2*seq*d*d)   = 8*seq*d^2
+                 QK^T + softmax*V  = 2 * (2*seq^2*d)    = 4*seq^2*d
+      FFN (2-layer MLP)            = 2 * (2*seq*d*d_ff) = 4*seq*d*d_ff
+    NOTE: uses the model's real FFN ratio via d_ff, not an assumed 4x/2x.
+    """
+    attn_flops = 8 * seq_len * d**2 + 4 * (seq_len**2) * d
+    ffn_flops = 4 * seq_len * d * d_ff
+    per_layer = attn_flops + ffn_flops
+    return per_layer, per_layer * n_layers
+
+
+def calculate_moondream_flops(model_id=MODEL_ID, text_tokens=128, load_model=True):
+    """
+    Manual FLOPS calculation for Moondream2-based models.
+    Includes BOTH the vision encoder and the text decoder
+    (your original Qwen2VL version only counted the LLM part).
+    """
+    print("=" * 60)
+    print(f"Manual FLOPs calculation for: {model_id}")
+    print("=" * 60)
+
+    # ---- Get config (nested, not flat) ----
+    if load_model:
+        try:
+            print(f"Loading model: {model_id}")
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                trust_remote_code=True,
+                torch_dtype=torch.float16,
+            )
+            config = model.config
+            total_params = sum(p.numel() for p in model.parameters())
+            print(f"  Total parameters: {total_params:,}")
+        except Exception as e:
+            print(f"  Model load failed ({e}); falling back to AutoConfig only.")
+            config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
+    else:
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
+
+    # ---- Pull nested text-decoder config ----
+    # Moondream's text backbone is Phi-style, stored under config.text_config
+    # (may be a dict or a config object depending on transformers/revision version)
+    text_cfg = getattr(config, "text_config", None)
+    if text_cfg is None:
+        raise AttributeError(
+            "config.text_config not found -- inspect `vars(config)` for this "
+            "revision and adjust the attribute path below."
+        )
+    if isinstance(text_cfg, dict):
+        text_dim = text_cfg.get("hidden_size", text_cfg.get("dim", 2048))
+        text_ff_dim = text_cfg.get("intermediate_size", text_cfg.get("ff_dim", 8192))
+        text_n_layers = text_cfg.get("num_hidden_layers", text_cfg.get("n_layers", 24))
+        vocab_size = text_cfg.get("vocab_size", 51200)
+    else:
+        text_dim = getattr(text_cfg, "hidden_size", 2048)
+        text_ff_dim = getattr(text_cfg, "intermediate_size", 8192)
+        text_n_layers = getattr(text_cfg, "num_hidden_layers", 24)
+        vocab_size = getattr(text_cfg, "vocab_size", 51200)
+
+    # ---- Vision encoder config ----
+    # Published Moondream2 vision tower (SigLIP SO400M/14 @ 378px). If this
+    # revision exposes it in config, prefer reading it the same way as above;
+    # otherwise these are the known published values.
+    vision_dim = 1152
+    vision_ff_dim = 4304
+    vision_n_layers = 27
+    patch_size = 14
+    crop_size = 378
+    image_tokens = (crop_size // patch_size) ** 2  # 729
+
+    total_seq_len = image_tokens + text_tokens
+
+    print(f"\nText decoder config (from config.text_config):")
+    print(f"  hidden_size: {text_dim}, intermediate_size: {text_ff_dim}, "
+          f"layers: {text_n_layers}, vocab: {vocab_size}")
+    print(f"\nVision encoder (SigLIP-based, published spec):")
+    print(f"  hidden_size: {vision_dim}, intermediate_size: {vision_ff_dim}, "
+          f"layers: {vision_n_layers}, image tokens: {image_tokens}")
+
+    # ---- Vision encoder FLOPs ----
+    vis_per_layer, vision_flops = transformer_block_flops(
+        image_tokens, vision_dim, vision_ff_dim, vision_n_layers
+    )
+
+    # ---- Vision -> text projection (single linear layer approx) ----
+    projection_flops = 2 * image_tokens * vision_dim * text_dim
+
+    # ---- Text decoder FLOPs (processes image + text tokens together) ----
+    txt_per_layer, text_flops = transformer_block_flops(
+        total_seq_len, text_dim, text_ff_dim, text_n_layers
+    )
+
+    # ---- LM head ----
+    lm_head_flops = 2 * total_seq_len * text_dim * vocab_size
+
+    total_flops = vision_flops + projection_flops + text_flops + lm_head_flops
+    total_macs = total_flops // 2
+
+    print(f"\nFLOPs breakdown (single forward pass, seq_len={total_seq_len}):")
+    print(f"  Vision encoder:      {vision_flops/1e9:>10.2f} B")
+    print(f"  Vision->text proj:   {projection_flops/1e9:>10.3f} B")
+    print(f"  Text decoder:        {text_flops/1e9:>10.2f} B")
+    print(f"  LM head:             {lm_head_flops/1e9:>10.2f} B")
+    print(f"  {'-'*40}")
+    print(f"  TOTAL FLOPs:         {total_flops/1e9:>10.2f} B  ({total_flops/1e12:.3f} TFLOPs)")
+    print(f"  TOTAL MACs:          {total_macs/1e9:>10.2f} B")
+
+    return total_flops
+
+
+MODEL_FLOPS = calculate_moondream_flops(MODEL_ID)
 
 
 print(
