@@ -26,7 +26,7 @@ from transformers import (
     Qwen2VLForConditionalGeneration
 )
 
-
+from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 # ============================================================
 # Configuration
 # ============================================================
@@ -770,7 +770,86 @@ MODEL_NAME = "Qwen2"
 # FLOPs are intentionally None.
 # Computing meaningful VLM FLOPs requires including both
 # visual encoder + text decoder sequence configuration.
-MODEL_FLOPS = None
+
+def calculate_qwen2vl_flops_method2(model_id=MODEL_ID):
+    """
+    Method 2: Manual FLOPS calculation for Qwen2-VL
+    Based on model architecture
+    """
+    print("\n" + "=" * 60)
+    print("Method 2: Manual calculation for Qwen2-VL")
+    print("=" * 60)
+    
+    try:
+        # Load model to get config
+        print(f"Loading model: {model_id}")
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            model_id,
+            trust_remote_code=True,
+            device_map="auto",
+            dtype=torch.float16,
+        )
+        
+        # Get model config
+        config = model.config
+        print(f"\nModel Architecture:")
+        print(f"  Hidden size: {config.hidden_size}")
+        print(f"  Number of layers: {config.num_hidden_layers}")
+        print(f"  Number of attention heads: {config.num_attention_heads}")
+        print(f"  Intermediate size (FFN): {config.intermediate_size}")
+        
+        # Count parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        print(f"  Total parameters: {total_params:,}")
+        
+        # For VLMs, we need to consider:
+        # 1. Vision encoder (ViT-like)
+        # 2. Language model (Transformer)
+        # 3. Projection layers
+        
+        # Typical sequence for Qwen2-VL:
+        # - Image tokens: ~1024 (from patch embedding)
+        # - Text tokens: ~128
+        # - Total sequence length: ~1152
+        
+        seq_len_image = 1024  # Approximate image patches
+        seq_len_text = 128    # Text tokens
+        total_seq_len = seq_len_image + seq_len_text
+        
+        N = config.num_hidden_layers  # Number of transformer layers
+        d = config.hidden_size         # Hidden dimension
+        
+        # Attention: 8*seq_len*d^2 + 4*seq_len^2*d
+        attention_flops_per_layer = 8 * total_seq_len * (d ** 2) + 4 * (total_seq_len ** 2) * d
+        
+        # FFN: 8*seq_len*d^2 (approximate for MLP)
+        ffn_flops_per_layer = 8 * total_seq_len * d * d
+        
+        # Total per layer
+        flops_per_layer = attention_flops_per_layer + ffn_flops_per_layer
+        
+        # Total FLOPS (only for LLM part, not vision encoder)
+        total_flops = N * flops_per_layer
+        total_macs = total_flops // 2
+        
+        print(f"\nManual FLOPS Calculation (LLM component):")
+        print(f"  Image tokens: ~{seq_len_image}")
+        print(f"  Text tokens: {seq_len_text}")
+        print(f"  Total sequence length: {total_seq_len}")
+        print(f"  FLOPS per layer: {flops_per_layer:,.0f}")
+        print(f"  Total FLOPS ({N} layers): {total_flops:,.0f}")
+        print(f"  Total MACs: {total_macs:,.0f}")
+        print(f"  FLOPS in billions: {total_flops / 1e9:.2f} B")
+        print(f"\nNote: This calculation is for the LLM component only.")
+        print(f"Vision encoder FLOPS would be additional.")
+        
+        return total_flops
+        
+    except Exception as e:
+        print(f"Failed: {e}")
+        return None
+
+MODEL_FLOPS = calculate_qwen2vl_flops_method2(MODEL_ID)  # Use the manual calculation method for FLOPs
 
 
 print(

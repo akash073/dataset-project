@@ -1141,7 +1141,12 @@ MODEL_PARAMETERS = sum(
 # FLOPs value depends on image tokenization, prompt length,
 # and generated token length. Leave as None rather than report
 # a misleading number.
-MODEL_FLOPS = None
+
+from calflops import calculate_flops_hf
+batch_size, max_seq_length = 1, 128
+flops, macs, params = calculate_flops_hf(model_name=MODEL_ID, 
+                                          input_shape=(batch_size, max_seq_length))
+MODEL_FLOPS = flops
 
 
 print(
