@@ -940,31 +940,9 @@ def main():
         transform=transforms.ToTensor()
     )
 
-    #collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
-    #collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+    collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+    collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
     
-    # Load attacked MNIST .pt file
-    # data = torch.load(
-    #     VERBOSE_DATASET_PATH,
-    #     map_location="cpu"
-    # )
-
-    # images = data["images"]
-    # labels = data["labels"]
-
-    # print("Images shape:", images.shape)
-    # print("Labels shape:", labels.shape)
-
-    # # Convert to list-like dataset:
-    # # base_dataset[i] -> (image, label)
-    # base_dataset = list(
-    #     zip(
-    #         images,
-    #         labels
-    #     )
-    # )
-    # collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='attacked')
-    # collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='attacked')
 
     ATTACK_DIR = Path("./mnist_fgsm_splits")
 
@@ -1005,7 +983,7 @@ def main():
         collect_for_model(
             base_dataset,
             "CNN",
-            num_samples=NUM_TEST_SAMPLES / 4,
+            num_samples= int(NUM_TEST_SAMPLES) / 4,
             flush_every=25,
             file_name=f"attacked_epsilon_{epsilon_percentage}"
         )
@@ -1013,7 +991,7 @@ def main():
         collect_for_model(
             base_dataset,
             "DNN",
-            num_samples=NUM_TEST_SAMPLES / 4,
+            num_samples= int(NUM_TEST_SAMPLES) / 4,
             flush_every=25,
             file_name=f"attacked_epsilon_{epsilon_percentage}"
         )
