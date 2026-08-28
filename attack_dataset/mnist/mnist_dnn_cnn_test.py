@@ -53,6 +53,11 @@ DEVICE_LOG_DIR = OUTPUT_ROOT / f"{DEVICE_SHORT}"
 DEVICE_LOG_DIR.mkdir(exist_ok=True)
 
 DATA_ROOT = Path("./mnist_data")
+
+VERBOSE_DATASET_PATH = Path(
+    "mnist_fgsm_test_dataset.pt"
+)
+
 # =============================================================================
 
 
@@ -85,7 +90,7 @@ def resolve_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DEVICE = resolve_device()
+DEVICE = torch.device("cpu")#resolve_device()
 
 
 # ============================================================
@@ -477,10 +482,10 @@ def run_with_energy_tracking(inference_fn, *args, output_dir="./test_results/cod
 # Dataset / CSV helpers
 # ============================================================
 
-def get_edge_dataset_path():
+def get_edge_dataset_path(file_name):
     # raw_dir = DEVICE_LOG_DIR 
     # raw_dir.mkdir(parents=True, exist_ok=True)
-    return DEVICE_LOG_DIR / f"dnn_cnn_dataset_{DEVICE_SHORT}_automated_edge.csv"
+    return DEVICE_LOG_DIR / f"dnn_cnn_dataset_{DEVICE_SHORT}_{file_name}.csv"
 
 
 def append_rows(rows, file_path):
@@ -563,6 +568,7 @@ def build_row(
     carbon_intensity=None,
     gpu_metrics=None,
     model_flops=None,
+    model_under_attack=0
 ):
     gpu_metrics = gpu_metrics or {}
 
@@ -698,7 +704,7 @@ def build_row(
         "model_f1_weighted":            None,
 
         # --- custom metrics ---
-        "model_under_attack":              0,
+        "model_under_attack":              model_under_attack,
     }
 
 
@@ -814,19 +820,12 @@ def backfill_model_metrics(file_path, model_name):
 # Main collection loop
 # ============================================================
 
-def collect_for_model(model_name, num_samples=250, flush_every=25):
+def collect_for_model(base_dataset, model_name, num_samples=250, flush_every=25, file_name ='vanilla'):
     print(f"\nCollecting {num_samples} edge samples for {model_name} on {get_hostname()}")
     print(f"Device UUID : {DEVICE_UUID}")
     print(f"Device short: {DEVICE_SHORT}")
 
-    output_path = get_edge_dataset_path()
-
-    base_dataset = datasets.MNIST(
-        root="./mnist_data",
-        train=False,
-        download=True,
-        transform=transforms.ToTensor()
-    )
+    output_path = get_edge_dataset_path(file_name)
 
     rows = []
 
@@ -900,6 +899,7 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
             carbon_intensity=carbon_intensity,
             gpu_metrics=gpu_snap,
             model_flops=model_flops,
+            model_under_attack= file_name != 'vanilla'
         )
 
         rows.append(row)
@@ -929,9 +929,94 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 
 
 def main():
-    collect_for_model("CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25)
-    collect_for_model("DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25)
+
     print("\nDone.")
+
+
+    base_dataset = datasets.MNIST(
+        root="./mnist_data",
+        train=False,
+        download=True,
+        transform=transforms.ToTensor()
+    )
+
+    #collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+    #collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+    
+    # Load attacked MNIST .pt file
+    # data = torch.load(
+    #     VERBOSE_DATASET_PATH,
+    #     map_location="cpu"
+    # )
+
+    # images = data["images"]
+    # labels = data["labels"]
+
+    # print("Images shape:", images.shape)
+    # print("Labels shape:", labels.shape)
+
+    # # Convert to list-like dataset:
+    # # base_dataset[i] -> (image, label)
+    # base_dataset = list(
+    #     zip(
+    #         images,
+    #         labels
+    #     )
+    # )
+    # collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='attacked')
+    # collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='attacked')
+
+    ATTACK_DIR = Path("./mnist_fgsm_splits")
+
+    attack_files = sorted(
+        ATTACK_DIR.glob("mnist_fgsm_epsilon_*.pt")
+    )
+
+    for attack_file in attack_files:
+
+        print("\nLoading:", attack_file.name)
+
+        data = torch.load(
+            attack_file,
+            map_location="cpu"
+        )
+
+        images = data["images"]
+        labels = data["labels"]
+
+        epsilon = data.get("epsilon", None)
+        epsilon_percentage = data.get("epsilon_percentage", None)
+
+        print("Epsilon:", epsilon)
+        print("Epsilon %:", epsilon_percentage)
+        print("Images shape:", images.shape)
+        print("Labels shape:", labels.shape)
+
+        # Example:
+        # base_dataset[i] -> (image, label)
+        base_dataset = list(
+            zip(
+                images,
+                labels
+            )
+        )
+
+        # Your existing function
+        collect_for_model(
+            base_dataset,
+            "CNN",
+            num_samples=NUM_TEST_SAMPLES / 4,
+            flush_every=25,
+            file_name=f"attacked_epsilon_{epsilon_percentage}"
+        )
+
+        collect_for_model(
+            base_dataset,
+            "DNN",
+            num_samples=NUM_TEST_SAMPLES / 4,
+            flush_every=25,
+            file_name=f"attacked_epsilon_{epsilon_percentage}"
+        )
 
 
 if __name__ == "__main__":
