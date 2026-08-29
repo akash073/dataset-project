@@ -19,3 +19,7 @@ attack_dataset/artifacts/**/*
 attack_dataset/merged_training_data.csv
 attack_dataset/csv_llm_1M_checkpoint.pth
 attack_dataset/csv_llm_1M_weights.pth
+
+attack_dataset/cifar10/test_results/
+attack_dataset/cifar10/cifar10_data
+attack_dataset/cifar10/cifar10_data/cifar-10-python.tar.gz

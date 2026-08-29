@@ -24,6 +24,9 @@ sys.path.append(str(ROOT))
 #from utils.vlm_utils import load_tiny_vlm_model, predict_with_tiny_vlm
 
 
+
+NUM_TEST_SAMPLES = int(os.getenv("NUM_TEST_SAMPLES", 4))
+
 # ============================================================
 # CNN FOR CIFAR-10 RGB
 # ============================================================
@@ -318,7 +321,10 @@ def make_stable_device_id():
 DEVICE_UUID = make_stable_device_id()
 DEVICE_SHORT = DEVICE_UUID[:8]
 
-
+OUTPUT_ROOT = Path.cwd() / "test_results"
+OUTPUT_ROOT.mkdir(exist_ok=True)
+DEVICE_LOG_DIR = OUTPUT_ROOT / f"{DEVICE_SHORT}"
+DEVICE_LOG_DIR.mkdir(exist_ok=True)
 # ============================================================
 # GPU static info
 # ============================================================
@@ -518,18 +524,109 @@ def get_prediction_quality(logits):
 # FLOPs helper
 # ============================================================
 
-def compute_model_flops(model, device, input_shape=(1, 3, 32, 32)):
-    if not FVCORE_AVAILABLE:
-        return None
-    try:
-        dummy = torch.ones(input_shape, dtype=torch.float32, device=device)
-        fc = FlopCountAnalysis(model, dummy)
-        fc.unsupported_ops_warnings(False)
-        fc.uncalled_modules_warnings(False)
-        return int(fc.total())
-    except Exception as e:
-        print(f"[FLOPs unavailable] {e}")
-        return None
+def compute_model_flops(
+    model,
+    device,
+    input_shape=(1, 3, 32, 32)
+):
+
+    total_flops = 0
+    hooks = []
+
+    def conv_hook(module, inputs, output):
+        nonlocal total_flops
+
+        # output shape:
+        # [batch, out_channels, H, W]
+        batch_size = output.shape[0]
+        out_channels = output.shape[1]
+        output_h = output.shape[2]
+        output_w = output.shape[3]
+
+        kernel_h, kernel_w = module.kernel_size
+
+        in_channels = module.in_channels
+        groups = module.groups
+
+        kernel_operations = (
+            kernel_h
+            * kernel_w
+            * (in_channels // groups)
+        )
+
+        flops = (
+            batch_size
+            * out_channels
+            * output_h
+            * output_w
+            * kernel_operations
+        )
+
+        total_flops += int(flops)
+
+
+    def linear_hook(module, inputs, output):
+        nonlocal total_flops
+
+        input_tensor = inputs[0]
+
+        batch_size = input_tensor.shape[0]
+
+        flops = (
+            batch_size
+            * module.in_features
+            * module.out_features
+        )
+
+        total_flops += int(flops)
+
+
+    # Register hooks
+    for module in model.modules():
+
+        if isinstance(module, torch.nn.Conv2d):
+
+            hooks.append(
+                module.register_forward_hook(
+                    conv_hook
+                )
+            )
+
+        elif isinstance(module, torch.nn.Linear):
+
+            hooks.append(
+                module.register_forward_hook(
+                    linear_hook
+                )
+            )
+
+
+    model = model.to(device)
+    model.eval()
+
+    dummy = torch.randn(
+        *input_shape,
+        dtype=torch.float32,
+        device=device
+    )
+
+
+    with torch.no_grad():
+
+        model(dummy)
+
+
+    # Remove hooks
+    for hook in hooks:
+
+        hook.remove()
+
+
+    print(
+        f"Model FLOPs: {total_flops:,}"
+    )
+
+    return total_flops
 
 
 # ============================================================
@@ -548,7 +645,7 @@ def _extract_energy_data(tracker, emissions_value):
     return cpu_energy, gpu_energy, ram_energy, total_energy, carbon_intensity
 
 
-def run_with_energy_tracking(inference_fn, *args, output_dir="./energy_logs", **kwargs):
+def run_with_energy_tracking(inference_fn, *args, output_dir="./test_results/codecarbon", **kwargs):
     os.makedirs(output_dir, exist_ok=True)
 
     if CODECARBON_AVAILABLE:
@@ -580,10 +677,15 @@ def run_with_energy_tracking(inference_fn, *args, output_dir="./energy_logs", **
 # Dataset / CSV helpers
 # ============================================================
 
-def get_edge_dataset_path():
-    raw_dir = LOG_DIR / "raw_devices"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    return raw_dir / f"cifar10_fingerprint_dataset_{DEVICE_SHORT}_automated_edge.csv"
+# def get_edge_dataset_path():
+#     raw_dir = LOG_DIR / "raw_devices"
+#     raw_dir.mkdir(parents=True, exist_ok=True)
+#     return raw_dir / f"cifar10_fingerprint_dataset_{DEVICE_SHORT}_automated_edge.csv"
+
+def get_edge_dataset_path(file_name):
+    # raw_dir = DEVICE_LOG_DIR 
+    # raw_dir.mkdir(parents=True, exist_ok=True)
+    return DEVICE_LOG_DIR / f"dnn_cnn_dataset_{DEVICE_SHORT}_{file_name}.csv"
 
 
 def load_model_metrics():
@@ -683,6 +785,8 @@ def build_row(
     carbon_intensity=None,
     gpu_metrics=None,
     model_flops=None,
+    parameters = 0,
+    model_under_attack= False
 ):
     gpu_metrics = gpu_metrics or {}
 
@@ -738,7 +842,7 @@ def build_row(
 
         # --- Model identity ---
         "model_type":                   model_name,
-        "parameters":                   model_metrics.get("parameters"),
+        "parameters":                   parameters ,
         "model_flops":                  model_flops,
 
         # --- Prediction quality ---
@@ -819,6 +923,10 @@ def build_row(
         "model_precision_weighted":     model_metrics.get("precision_weighted"),
         "model_recall_weighted":        model_metrics.get("recall_weighted"),
         "model_f1_weighted":            model_metrics.get("f1_weighted"),
+
+        
+        # --- custom metrics ---
+        "model_under_attack":              model_under_attack,
     }
 
 
@@ -826,21 +934,16 @@ def build_row(
 # Main collection loop
 # ============================================================
 
-def collect_for_model(model_name, num_samples=250, flush_every=25):
+def collect_for_model(base_dataset, model_name, num_samples=250, flush_every=25, file_name ='vanilla'):
     print(f"\nCollecting {num_samples} CIFAR-10 RGB edge samples for {model_name} on {get_hostname()}")
     print(f"Device UUID : {DEVICE_UUID}")
     print(f"Device short: {DEVICE_SHORT}")
 
     all_metrics = load_model_metrics()
     model_metrics = all_metrics.get(model_name, {})
-    output_path = get_edge_dataset_path()
+    output_path = get_edge_dataset_path(file_name)
 
-    base_dataset = datasets.CIFAR10(
-        root="../data",
-        train=False,
-        download=True,
-        transform=transforms.ToTensor()
-    )
+
 
     rows = []
 
@@ -862,6 +965,16 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
     limit = min(num_samples, len(base_dataset))
     existing_count = get_existing_count(output_path, model_name)
 
+
+    # Parameter count
+    parameters = sum(
+        p.numel()
+        for p in model.parameters()
+    )
+
+
+    print("Parameters:", parameters)
+    print("Model FLOPs:", model_flops)
     if existing_count >= limit:
         print(f"{model_name}: already complete ({existing_count}/{limit}) -> skipping")
         return
@@ -903,6 +1016,8 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
             carbon_intensity=carbon_intensity,
             gpu_metrics=gpu_snap,
             model_flops=model_flops,
+            parameters = parameters,
+            model_under_attack= file_name != 'vanilla'
         )
 
         rows.append(row)
@@ -925,9 +1040,72 @@ def collect_for_model(model_name, num_samples=250, flush_every=25):
 
 
 def main():
-    NUM_SAMPLES = 10
-    collect_for_model("DNN",      num_samples=NUM_SAMPLES, flush_every=25)
-    collect_for_model("CNN",      num_samples=NUM_SAMPLES, flush_every=25)
+
+    base_dataset = datasets.CIFAR10(
+        root="./cifar10_data",
+        train=False,
+        download=True,
+        transform=transforms.ToTensor()
+    )
+
+    collect_for_model(base_dataset, "DNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+    collect_for_model(base_dataset, "CNN",      num_samples=NUM_TEST_SAMPLES, flush_every=25, file_name ='vanilla')
+
+
+    ATTACK_DIR = Path("./cifar10_fgsm_splits")
+    
+    attack_files = sorted(
+        ATTACK_DIR.glob("cifar10_fgsm_epsilon_*.pt")
+    )
+
+    for attack_file in attack_files:
+
+        print("\nLoading:", attack_file.name)
+
+        data = torch.load(
+            attack_file,
+            map_location="cpu"
+        )
+
+        images = data["images"]
+        labels = data["labels"]
+
+        epsilon = data.get("epsilon", None)
+        epsilon_percentage = data.get("epsilon_percentage", None)
+
+        print("Epsilon:", epsilon)
+        print("Epsilon %:", epsilon_percentage)
+        print("Images shape:", images.shape)
+        print("Labels shape:", labels.shape)
+
+        # Example:
+        # base_dataset[i] -> (image, label)
+        base_dataset = list(
+            zip(
+                images,
+                labels
+            )
+        )
+
+        # Your existing function
+        collect_for_model(
+            base_dataset,
+            "CNN",
+            num_samples= int(NUM_TEST_SAMPLES) // 4,
+            flush_every=25,
+            file_name=f"attacked_epsilon_{epsilon_percentage}"
+        )
+
+        collect_for_model(
+            base_dataset,
+            "DNN",
+            num_samples= int(NUM_TEST_SAMPLES) // 4,
+            flush_every=25,
+            file_name=f"attacked_epsilon_{epsilon_percentage}"
+        )
+
+
+
 
     print("\nDone.")
 

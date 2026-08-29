@@ -54,9 +54,9 @@ DEVICE_LOG_DIR.mkdir(exist_ok=True)
 
 DATA_ROOT = Path("./mnist_data")
 
-VERBOSE_DATASET_PATH = Path(
-    "mnist_fgsm_test_dataset.pt"
-)
+# VERBOSE_DATASET_PATH = Path(
+#     "mnist_fgsm_test_dataset.pt"
+# )
 
 # =============================================================================
 
@@ -983,7 +983,7 @@ def main():
         collect_for_model(
             base_dataset,
             "CNN",
-            num_samples= int(NUM_TEST_SAMPLES) / 4,
+            num_samples= int(NUM_TEST_SAMPLES) // 4,
             flush_every=25,
             file_name=f"attacked_epsilon_{epsilon_percentage}"
         )
@@ -991,7 +991,7 @@ def main():
         collect_for_model(
             base_dataset,
             "DNN",
-            num_samples= int(NUM_TEST_SAMPLES) / 4,
+            num_samples= int(NUM_TEST_SAMPLES) // 4,
             flush_every=25,
             file_name=f"attacked_epsilon_{epsilon_percentage}"
         )
